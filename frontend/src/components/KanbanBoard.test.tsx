@@ -18,7 +18,7 @@ describe("KanbanBoard", () => {
   it("loads the board from the API", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(boardResponse()));
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard showChat={false} />);
 
     expect(screen.getByText("Loading board...")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Kanban Studio" })).toBeInTheDocument();
@@ -27,14 +27,14 @@ describe("KanbanBoard", () => {
   it("shows an error when the board cannot be loaded", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard showChat={false} />);
 
     expect(await screen.findByText("Unable to load the board.")).toBeInTheDocument();
   });
 
   it("shows an error when a board change cannot be saved", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
-    render(<KanbanBoard initialBoard={initialData} />);
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
     const column = getFirstColumn();
 
     await userEvent.click(within(column).getByRole("button", { name: /add a card/i }));
@@ -45,12 +45,12 @@ describe("KanbanBoard", () => {
   });
 
   it("renders five columns", () => {
-    render(<KanbanBoard initialBoard={initialData} />);
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
     expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
   });
 
   it("renames a column", async () => {
-    render(<KanbanBoard initialBoard={initialData} />);
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
     const column = getFirstColumn();
     const input = within(column).getByLabelText("Column title");
     await userEvent.clear(input);
@@ -67,7 +67,7 @@ describe("KanbanBoard", () => {
       "fetch",
       vi.fn().mockResolvedValueOnce(boardResponse(afterAdd)).mockResolvedValueOnce(boardResponse(afterDelete))
     );
-    render(<KanbanBoard initialBoard={initialData} />);
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
     const column = getFirstColumn();
     const addButton = within(column).getByRole("button", {
       name: /add a card/i,
@@ -103,7 +103,7 @@ describe("KanbanBoard", () => {
       details: "Updated details.",
     };
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(boardResponse(afterEdit)));
-    render(<KanbanBoard initialBoard={initialData} />);
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
     const card = screen.getByTestId("card-card-1");
 
     await userEvent.click(within(card).getByRole("button", { name: /edit align roadmap themes/i }));

@@ -53,6 +53,39 @@ test("edits a card", async ({ page }) => {
   await expect(card.getByText("Updated details.")).toBeVisible();
 });
 
+test("updates the board after an AI chat response", async ({ page }) => {
+  await page.route("**/api/ai/history", (route) =>
+    route.fulfill({ json: { messages: [] } })
+  );
+  await page.route("**/api/ai/chat", (route) =>
+    route.fulfill({
+      json: {
+        response: "I added the launch task.",
+        board: {
+          columns: [
+            { id: "column-backlog", title: "Backlog", cardIds: ["card-launch"] },
+          ],
+          cards: {
+            "card-launch": {
+              id: "card-launch",
+              title: "Plan launch",
+              details: "Outline milestones.",
+            },
+          },
+        },
+      },
+    })
+  );
+
+  await signIn(page);
+  await page.getByLabel("Message the project assistant").fill("Add a launch task");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText("I added the launch task.")).toBeVisible();
+  await expect(page.getByText("Plan launch")).toBeVisible();
+  await expect(page.getByText("Outline milestones.")).toBeVisible();
+});
+
 test("moves a card between columns", async ({ page }) => {
   await signIn(page);
   const card = page.locator('[data-testid^="card-"]').first();

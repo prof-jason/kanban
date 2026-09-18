@@ -221,6 +221,11 @@ def chat_with_ai(change: AiChatRequest, request: Request) -> dict[str, object]:
     return {"response": ai_response.response, "board": board}
 
 
+@app.get("/api/ai/history")
+def get_ai_history(request: Request) -> dict[str, list[dict[str, str]]]:
+    return {"messages": get_chat_history(get_authenticated_username(request))}
+
+
 @app.get("/api/example")
 def get_example() -> dict[str, str]:
     return {"message": "Hello from the API"}

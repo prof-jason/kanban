@@ -219,3 +219,12 @@ def test_ai_chat_rejects_invalid_operations_without_changing_the_board(
     assert response.status_code == 502
     assert response.json()["detail"] == "AI operation references an unknown column."
     assert client.get("/api/board").json() == original_board
+
+
+def test_ai_history_requires_authentication_and_returns_saved_messages(client: TestClient) -> None:
+    assert client.get("/api/ai/history").status_code == 401
+
+    sign_in(client)
+    client.post("/api/ai/connectivity")
+
+    assert client.get("/api/ai/history").json() == {"messages": []}

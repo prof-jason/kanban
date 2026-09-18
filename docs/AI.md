@@ -1,6 +1,6 @@
 # AI Chat Contract
 
-`POST /api/ai/chat` is an authenticated backend-only endpoint. It reads the current board and the latest 10 saved messages, sends them with the new question to OpenRouter, and returns assistant text with the resulting board.
+`POST /api/ai/chat` is an authenticated backend-only endpoint. It reads the current board and the latest 10 saved messages, sends them with the new question to OpenRouter, and returns assistant text with the resulting board. `GET /api/ai/history` returns the persisted history for the authenticated board.
 
 The model must return this versioned JSON shape:
 
@@ -30,3 +30,5 @@ The model must return this versioned JSON shape:
 OpenRouter receives a strict JSON Schema derived from this contract. The backend parses the returned content before performing any mutation. It checks every referenced column, card, and target position against the current authenticated board before applying operations. Invalid or unavailable model output returns an error and no board change is recorded.
 
 Conversation history is stored in SQLite `chat_messages`, associated with the board. The request supplies the latest 10 messages in chronological order. After a successful chat request, the user question and assistant response are stored. Schema version 2 adds this table and its board/id index.
+
+The frontend chat sidebar loads this history on the board screen. It renders each response and replaces the displayed board with the `board` object returned from a successful chat request, so valid AI operations appear without a page reload.

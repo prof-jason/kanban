@@ -172,11 +172,11 @@ Success criteria:
 
 ## Part 10: AI Chat Sidebar
 
-- [ ] Add an accessible sidebar chat interface consistent with the existing Kanban visual language.
-- [ ] Support message submission, pending state, response rendering, and request-error feedback.
-- [ ] Send chat messages to the authenticated backend route.
-- [ ] Apply a validated AI board update and refresh the board without a page reload.
-- [ ] Add tests for both chat-only replies and replies that update one or multiple cards.
+- [x] Add an accessible sidebar chat interface consistent with the existing Kanban visual language.
+- [x] Support message submission, pending state, response rendering, and request-error feedback.
+- [x] Send chat messages to the authenticated backend route.
+- [x] Apply a validated AI board update and refresh the board without a page reload.
+- [x] Add tests for both chat-only replies and replies that update one or multiple cards.
 
 Tests:
 

@@ -26,6 +26,7 @@ From this directory, use:
 - `src/app/page.tsx` renders `AuthGate` as the home page.
 - `src/components/AuthGate.tsx` checks the backend session, renders the login form for signed-out users, and renders the board only after authentication.
 - `src/components/KanbanBoard.tsx` loads `BoardData` from `/api/board`, renders loading/error states, and sends each board mutation to the API.
+- `src/components/ChatSidebar.tsx` loads persisted chat history, sends messages to `/api/ai/chat`, renders request states, and supplies the returned board to `KanbanBoard` for immediate refresh.
 - `src/components/KanbanColumn.tsx` renders a droppable column, editable column title, sortable cards, and the new-card form.
 - `src/components/KanbanCard.tsx` renders one sortable card and its delete action.
 - `src/components/KanbanCardPreview.tsx` renders the drag overlay preview.
@@ -37,6 +38,7 @@ The demo starts with five columns: Backlog, Discovery, In Progress, Review, and 
 ## Testing Conventions
 
 - Place component tests beside the component, following `KanbanBoard.test.tsx`.
+- `ChatSidebar.test.tsx` mocks history and chat API responses to cover history, errors, and an AI board update.
 - Test pure board behavior beside `src/lib/kanban.ts`, following `kanban.test.ts`.
 - Place browser workflows in `tests/`.
 - Existing stable selectors use `data-testid` values such as `column-col-backlog` and `card-card-1`; preserve or deliberately update tests when changing them.

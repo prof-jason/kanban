@@ -34,6 +34,7 @@ describe("AuthGate", () => {
       .mockResolvedValueOnce(sessionResponse(false))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(initialData), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ messages: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
