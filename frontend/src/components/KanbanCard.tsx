@@ -89,8 +89,8 @@ export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
           </div>
         </form>
       ) : (
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="space-y-3">
+          <div className="min-w-0 break-words">
             <h4 className="font-display text-base font-semibold text-[var(--navy-dark)]">
               {card.title}
             </h4>
@@ -98,7 +98,7 @@ export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
               {card.details}
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={startEditing}
