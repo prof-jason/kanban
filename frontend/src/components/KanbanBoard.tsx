@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,15 +13,17 @@ import {
 } from "@dnd-kit/core";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
-import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
+import { moveCard, type BoardData } from "@/lib/kanban";
 
 type KanbanBoardProps = {
   onLogout?: () => void;
+  initialBoard?: BoardData;
 };
 
-export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
-  const [board, setBoard] = useState<BoardData>(() => initialData);
+export const KanbanBoard = ({ onLogout, initialBoard }: KanbanBoardProps) => {
+  const [board, setBoard] = useState<BoardData | null>(initialBoard ?? null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -29,7 +31,40 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
     })
   );
 
-  const cardsById = useMemo(() => board.cards, [board.cards]);
+  useEffect(() => {
+    if (initialBoard) {
+      return;
+    }
+
+    const loadBoard = async () => {
+      try {
+        const response = await fetch("/api/board");
+        if (!response.ok) {
+          throw new Error("Unable to load the board.");
+        }
+        setBoard((await response.json()) as BoardData);
+      } catch {
+        setError("Unable to load the board.");
+      }
+    };
+
+    void loadBoard();
+  }, [initialBoard]);
+
+  const cardsById = useMemo(() => board?.cards ?? {}, [board]);
+
+  const saveBoard = async (path: string, options: RequestInit) => {
+    setError("");
+    try {
+      const response = await fetch(path, options);
+      if (!response.ok) {
+        throw new Error("Unable to save the board.");
+      }
+      setBoard((await response.json()) as BoardData);
+    } catch {
+      setError("Unable to save the board. Please try again.");
+    }
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
@@ -43,67 +78,78 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
       return;
     }
 
-    setBoard((prev) => ({
-      ...prev,
-      columns: moveCard(prev.columns, active.id as string, over.id as string),
-    }));
+    if (!board) {
+      return;
+    }
+
+    const cardId = active.id as string;
+    const nextColumns = moveCard(board.columns, cardId, over.id as string);
+    const targetColumn = nextColumns.find((column) => column.cardIds.includes(cardId));
+    if (!targetColumn) {
+      return;
+    }
+
+    void saveBoard(`/api/board/cards/${cardId}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        column_id: targetColumn.id,
+        position: targetColumn.cardIds.indexOf(cardId),
+      }),
+    });
   };
 
   const handleRenameColumn = (columnId: string, title: string) => {
-    setBoard((prev) => ({
-      ...prev,
-      columns: prev.columns.map((column) =>
+    if (!board) {
+      return;
+    }
+    setBoard({
+      ...board,
+      columns: board.columns.map((column) =>
         column.id === columnId ? { ...column, title } : column
       ),
-    }));
+    });
+  };
+
+  const handleSaveColumn = (columnId: string, title: string) => {
+    void saveBoard(`/api/board/columns/${columnId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
   };
 
   const handleAddCard = (columnId: string, title: string, details: string) => {
-    const id = createId("card");
-    setBoard((prev) => ({
-      ...prev,
-      cards: {
-        ...prev.cards,
-        [id]: { id, title, details: details || "No details yet." },
-      },
-      columns: prev.columns.map((column) =>
-        column.id === columnId
-          ? { ...column, cardIds: [...column.cardIds, id] }
-          : column
-      ),
-    }));
+    void saveBoard("/api/board/cards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ column_id: columnId, title, details }),
+    });
   };
 
-  const handleDeleteCard = (columnId: string, cardId: string) => {
-    setBoard((prev) => {
-      return {
-        ...prev,
-        cards: Object.fromEntries(
-          Object.entries(prev.cards).filter(([id]) => id !== cardId)
-        ),
-        columns: prev.columns.map((column) =>
-          column.id === columnId
-            ? {
-                ...column,
-                cardIds: column.cardIds.filter((id) => id !== cardId),
-              }
-            : column
-        ),
-      };
+  const handleDeleteCard = (_columnId: string, cardId: string) => {
+    void saveBoard(`/api/board/cards/${cardId}`, {
+      method: "DELETE",
     });
   };
 
   const handleEditCard = (cardId: string, title: string, details: string) => {
-    setBoard((prev) => ({
-      ...prev,
-      cards: {
-        ...prev.cards,
-        [cardId]: { id: cardId, title, details },
-      },
-    }));
+    void saveBoard(`/api/board/cards/${cardId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, details }),
+    });
   };
 
   const activeCard = activeCardId ? cardsById[activeCardId] : null;
+
+  if (!board) {
+    return (
+      <main className="p-6 text-[var(--gray-text)]">
+        {error || "Loading board..."}
+      </main>
+    );
+  }
 
   return (
     <div className="relative overflow-hidden">
@@ -156,6 +202,8 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
           </div>
         </header>
 
+        {error && <p className="text-sm text-red-700">{error}</p>}
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -169,6 +217,7 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
                 column={column}
                 cards={column.cardIds.map((cardId) => board.cards[cardId])}
                 onRename={handleRenameColumn}
+                onSaveColumn={handleSaveColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}
                 onEditCard={handleEditCard}

@@ -4,3 +4,8 @@ services:
       context: .
     ports:
       - "8000:8000"
+    volumes:
+      - kanban-data:/data
+
+volumes:
+  kanban-data:

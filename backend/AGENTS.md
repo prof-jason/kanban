@@ -6,7 +6,9 @@ This directory contains the FastAPI backend. It serves the statically exported f
 - Application code is in `app/`; the ASGI entry point is `app.main:app`.
 - Static files served by FastAPI are in `static/`.
 - API tests live in `tests/` and run with `uv run pytest`.
+- SQLite operations are in `app/database.py`. The database initializes at startup and is stored at `/data/project_management.db` in the `kanban-data` Compose volume.
 - The application is built from the repository-root Dockerfile and exposed on port 8000 through `compose.yaml`.
 - `POST /api/auth/login`, `GET /api/auth/session`, and `POST /api/auth/logout` implement the signed cookie session for the fixed MVP credentials.
+- Authenticated board routes under `/api/board` return the complete ordered board after every mutation.
 
 Keep route handlers small. Add persistence and AI integrations only in their respective approved plan stages.

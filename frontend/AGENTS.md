@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This directory contains the Next.js Kanban UI. Board state is still in memory; authentication is handled through the FastAPI session API. Database persistence and AI chat are not yet implemented.
+This directory contains the Next.js Kanban UI. Authentication and board state are handled through the FastAPI API; board data persists in SQLite. AI chat is not yet implemented.
 
 ## Stack and Commands
 
@@ -25,7 +25,7 @@ From this directory, use:
 
 - `src/app/page.tsx` renders `AuthGate` as the home page.
 - `src/components/AuthGate.tsx` checks the backend session, renders the login form for signed-out users, and renders the board only after authentication.
-- `src/components/KanbanBoard.tsx` owns in-memory `BoardData`, drag handling, column renaming, and card creation, editing, and deletion.
+- `src/components/KanbanBoard.tsx` loads `BoardData` from `/api/board`, renders loading/error states, and sends each board mutation to the API.
 - `src/components/KanbanColumn.tsx` renders a droppable column, editable column title, sortable cards, and the new-card form.
 - `src/components/KanbanCard.tsx` renders one sortable card and its delete action.
 - `src/components/KanbanCardPreview.tsx` renders the drag overlay preview.

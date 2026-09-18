@@ -85,7 +85,7 @@ Success criteria:
 - [x] Document the schema, migration/initialization approach, ownership rules, and JSON representation in `docs/`.
 - [x] Specify how the initial demo board is created for a new user.
 - [x] Specify the Docker volume path for persistent SQLite storage.
-- [ ] Obtain user approval before implementing persistence.
+- [x] Obtain user approval before implementing persistence.
 
 Tests:
 
@@ -99,11 +99,11 @@ Success criteria:
 
 ## Part 6: Persistent Kanban API
 
-- [ ] Initialize SQLite and create its schema when the database does not exist.
-- [ ] Seed the authenticated user's initial board on first access.
-- [ ] Add authenticated routes to read the board and update column names, card title/details, card locations/order, and card lifecycle.
-- [ ] Validate request data and consistently scope all reads and writes to the authenticated user.
-- [ ] Return a complete, ordered board representation suitable for the frontend.
+- [x] Initialize SQLite and create its schema when the database does not exist.
+- [x] Seed the authenticated user's initial board on first access.
+- [x] Add authenticated routes to read the board and update column names, card title/details, card locations/order, and card lifecycle.
+- [x] Validate request data and consistently scope all reads and writes to the authenticated user.
+- [x] Return a complete, ordered board representation suitable for the frontend.
 
 Tests:
 
@@ -118,10 +118,10 @@ Success criteria:
 
 ## Part 7: Connect the Frontend to the API
 
-- [ ] Replace the frontend's initial in-memory board source with an authenticated API read.
-- [ ] Persist each supported UI mutation through the API and update the UI from the returned board state.
-- [ ] Add clear loading and request-error states without changing the existing Kanban interaction model.
-- [ ] Confirm a reload shows persisted board changes.
+- [x] Replace the frontend's initial in-memory board source with an authenticated API read.
+- [x] Persist each supported UI mutation through the API and update the UI from the returned board state.
+- [x] Add clear loading and request-error states without changing the existing Kanban interaction model.
+- [x] Confirm a reload shows persisted board changes.
 
 Tests:
 

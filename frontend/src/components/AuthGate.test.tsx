@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { AuthGate } from "@/components/AuthGate";
+import { initialData } from "@/lib/kanban";
 
 const sessionResponse = (authenticated: boolean) =>
   new Response(JSON.stringify({ authenticated }), { status: 200 });
@@ -32,6 +33,7 @@ describe("AuthGate", () => {
       .fn()
       .mockResolvedValueOnce(sessionResponse(false))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(initialData), { status: 200 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 

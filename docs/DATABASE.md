@@ -44,7 +44,7 @@ CREATE INDEX cards_by_column_position ON cards(column_id, position);
 
 `boards.user_id` is unique, enforcing one board per user. A card belongs to its board through its column, so a user can only read or change it after the request is scoped through `boards.user_id`.
 
-Columns and cards use string IDs. Seed data retains the existing stable IDs such as `col-backlog` and `card-1`; later-created records use server-generated IDs.
+Columns and cards use globally unique string IDs. Seeded IDs are scoped to the board, such as `board-user-col-backlog` and `board-user-card-1`; later-created records use server-generated IDs. This lets every future user receive the same initial board without primary-key collisions.
 
 ## JSON Contract
 
@@ -54,14 +54,14 @@ The board endpoint returns the existing frontend shape. Columns are ordered by `
 {
   "columns": [
     {
-      "id": "col-backlog",
+      "id": "board-user-col-backlog",
       "title": "Backlog",
-      "cardIds": ["card-1", "card-2"]
+      "cardIds": ["board-user-card-1", "board-user-card-2"]
     }
   ],
   "cards": {
-    "card-1": {
-      "id": "card-1",
+    "board-user-card-1": {
+      "id": "board-user-card-1",
       "title": "Align roadmap themes",
       "details": "Draft quarterly themes with impact statements and metrics."
     }
