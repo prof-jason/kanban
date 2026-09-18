@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Project Management MVP</title>
+  </head>
+  <body>
+    <main>
+      <h1>Project Management MVP</h1>
+      <p id="api-result">Loading API response...</p>
+    </main>
+    <script>
+      fetch("/api/example")
+        .then((response) => response.json())
+        .then((data) => {
+          document.querySelector("#api-result").textContent = data.message;
+        })
+        .catch(() => {
+          document.querySelector("#api-result").textContent = "Unable to reach the API.";
+        });
+    </script>
+  </body>
+</html>
