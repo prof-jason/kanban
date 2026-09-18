@@ -8,13 +8,23 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import (
+    apply_ai_operations,
     create_card,
     delete_card,
+    get_chat_history,
     get_or_create_board,
     initialize_database,
     move_card,
     rename_column,
+    record_chat_messages,
     update_card,
+)
+from app.ai_contract import AiChatResponse, ChatMessage, StructuredOutputError, operation_to_dict
+from app.openrouter import (
+    OpenRouterConfigurationError,
+    OpenRouterRequestError,
+    answer_board_question,
+    answer_two_plus_two,
 )
 
 STATIC_DIRECTORY = Path(__file__).resolve().parent.parent / "static"
@@ -46,6 +56,10 @@ class CardUpdate(BaseModel):
 class CardMove(BaseModel):
     column_id: str
     position: int = Field(ge=0)
+
+
+class AiChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=4000)
 
 
 @asynccontextmanager
@@ -165,6 +179,46 @@ def remove_card(card_id: str, request: Request) -> dict[str, object]:
         return delete_card(get_authenticated_username(request), card_id)
     except LookupError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+
+
+@app.post("/api/ai/connectivity")
+def check_ai_connectivity(request: Request) -> dict[str, str]:
+    get_authenticated_username(request)
+    try:
+        return {"response": answer_two_plus_two()}
+    except OpenRouterConfigurationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
+        ) from error
+    except OpenRouterRequestError as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+
+
+@app.post("/api/ai/chat")
+def chat_with_ai(change: AiChatRequest, request: Request) -> dict[str, object]:
+    username = get_authenticated_username(request)
+    board = get_or_create_board(username)
+    history = [ChatMessage.model_validate(message) for message in get_chat_history(username)]
+    try:
+        ai_response = answer_board_question(board, history, change.question)
+        board = apply_ai_operations(
+            username, [operation_to_dict(operation) for operation in ai_response.operations]
+        )
+    except (OpenRouterRequestError, StructuredOutputError, ValueError) as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+    except OpenRouterConfigurationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
+        ) from error
+
+    record_chat_messages(
+        username,
+        [
+            {"role": "user", "content": change.question},
+            {"role": "assistant", "content": ai_response.response},
+        ],
+    )
+    return {"response": ai_response.response, "board": board}
 
 
 @app.get("/api/example")

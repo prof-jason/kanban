@@ -136,10 +136,10 @@ Success criteria:
 
 ## Part 8: OpenRouter Connectivity
 
-- [ ] Add a backend AI client configured from `OPENROUTER_API_KEY` and the required `nvidia/nemotron-3-ultra-550b-a55b:free` model.
-- [ ] Keep the API key server-side and exclude it from logs and frontend assets.
-- [ ] Add a narrow internal or development connectivity check that asks the model `2+2`.
-- [ ] Provide actionable configuration errors when the key is absent.
+- [x] Add a backend AI client configured from `OPENROUTER_API_KEY` and the required `nvidia/nemotron-3-ultra-550b-a55b:free` model.
+- [x] Keep the API key server-side and exclude it from logs and frontend assets.
+- [x] Add a narrow internal or development connectivity check that asks the model `2+2`.
+- [x] Provide actionable configuration errors when the key is absent.
 
 Tests:
 

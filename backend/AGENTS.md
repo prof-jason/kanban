@@ -10,5 +10,6 @@ This directory contains the FastAPI backend. It serves the statically exported f
 - The application is built from the repository-root Dockerfile and exposed on port 8000 through `compose.yaml`.
 - `POST /api/auth/login`, `GET /api/auth/session`, and `POST /api/auth/logout` implement the signed cookie session for the fixed MVP credentials.
 - Authenticated board routes under `/api/board` return the complete ordered board after every mutation.
+- `app/openrouter.py` provides the server-only OpenRouter client using `OPENROUTER_API_KEY` and `nvidia/nemotron-3-ultra-550b-a55b:free`. `POST /api/ai/connectivity` is an authenticated, opt-in `2+2` check.
 
 Keep route handlers small. Add persistence and AI integrations only in their respective approved plan stages.

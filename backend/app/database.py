@@ -76,7 +76,18 @@ def initialize_database() -> None:
             CREATE INDEX IF NOT EXISTS cards_by_column_position
             ON cards(column_id, position);
 
-            PRAGMA user_version = 1;
+                        CREATE TABLE IF NOT EXISTS chat_messages (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+                            role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                            content TEXT NOT NULL,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS chat_messages_by_board
+                        ON chat_messages(board_id, id);
+
+                        PRAGMA user_version = 2;
             """
         )
 
@@ -348,3 +359,95 @@ def _touch_board(connection: sqlite3.Connection, board_id: str) -> None:
         "UPDATE boards SET updated_at = ? WHERE id = ?",
         (datetime.now(UTC).isoformat(), board_id),
     )
+
+
+def get_chat_history(username: str, limit: int = 10) -> list[dict[str, str]]:
+    get_or_create_board(username)
+    with get_connection() as connection:
+        _, board_id = _get_board_ids(connection, username)
+        messages = connection.execute(
+            """
+            SELECT role, content FROM chat_messages
+            WHERE board_id = ? ORDER BY id DESC LIMIT ?
+            """,
+            (board_id, limit),
+        ).fetchall()
+    return [{"role": message["role"], "content": message["content"]} for message in reversed(messages)]
+
+
+def record_chat_messages(username: str, messages: list[dict[str, str]]) -> None:
+    with get_connection() as connection:
+        _, board_id = _get_board_ids(connection, username)
+        now = datetime.now(UTC).isoformat()
+        connection.executemany(
+            "INSERT INTO chat_messages (board_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+            [(board_id, message["role"], message["content"], now) for message in messages],
+        )
+
+
+def apply_ai_operations(username: str, operations: list[dict[str, object]]) -> dict[str, object]:
+    board = get_or_create_board(username)
+    _validate_ai_operations(board, operations)
+
+    for operation in operations:
+        operation_type = operation["type"]
+        if operation_type == "rename_column":
+            board = rename_column(username, str(operation["column_id"]), str(operation["title"]))
+        elif operation_type == "create_card":
+            board = create_card(
+                username,
+                str(operation["column_id"]),
+                str(operation["title"]),
+                str(operation["details"]),
+            )
+        elif operation_type == "update_card":
+            board = update_card(
+                username,
+                str(operation["card_id"]),
+                str(operation["title"]),
+                str(operation["details"]),
+            )
+        elif operation_type == "move_card":
+            board = move_card(
+                username,
+                str(operation["card_id"]),
+                str(operation["column_id"]),
+                int(operation["position"]),
+            )
+        elif operation_type == "delete_card":
+            board = delete_card(username, str(operation["card_id"]))
+    return board
+
+
+def _validate_ai_operations(board: dict[str, object], operations: list[dict[str, object]]) -> None:
+    columns = {column["id"]: list(column["cardIds"]) for column in board["columns"]}  # type: ignore[index]
+    cards = set(board["cards"].keys())  # type: ignore[index]
+
+    for operation in operations:
+        operation_type = operation["type"]
+        if operation_type in {"rename_column", "create_card"}:
+            if operation["column_id"] not in columns:
+                raise ValueError("AI operation references an unknown column.")
+        elif operation_type in {"update_card", "delete_card", "move_card"}:
+            card_id = operation["card_id"]
+            if card_id not in cards:
+                raise ValueError("AI operation references an unknown card.")
+            if operation_type == "move_card":
+                column_id = operation["column_id"]
+                if column_id not in columns:
+                    raise ValueError("AI operation references an unknown column.")
+                source_column_id = next(
+                    column_id for column_id, card_ids in columns.items() if card_id in card_ids
+                )
+                target_cards = [card for card in columns[column_id] if card != card_id]
+                if operation["position"] > len(target_cards):
+                    raise ValueError("AI operation has an invalid card position.")
+                columns[source_column_id].remove(card_id)
+                target_cards.insert(int(operation["position"]), card_id)
+                columns[column_id] = target_cards
+            elif operation_type == "delete_card":
+                cards.remove(card_id)
+                for card_ids in columns.values():
+                    if card_id in card_ids:
+                        card_ids.remove(card_id)
+                        break

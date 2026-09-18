@@ -19,9 +19,15 @@ def test_initialization_creates_the_schema(tmp_path, monkeypatch) -> None:
 
     with get_connection() as connection:
         tables = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
         ).fetchall()
-    assert [table["name"] for table in tables] == ["boards", "cards", "columns", "users"]
+    assert [table["name"] for table in tables] == [
+        "boards",
+        "cards",
+        "chat_messages",
+        "columns",
+        "users",
+    ]
 
 
 def test_first_board_read_seeds_the_current_kanban(tmp_path, monkeypatch) -> None:
