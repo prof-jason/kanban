@@ -40,6 +40,16 @@ CREATE TABLE cards (
 );
 
 CREATE INDEX cards_by_column_position ON cards(column_id, position);
+
+CREATE TABLE chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX chat_messages_by_board ON chat_messages(board_id, id);
 ```
 
 `boards.user_id` is unique, enforcing one board per user. A card belongs to its board through its column, so a user can only read or change it after the request is scoped through `boards.user_id`.
@@ -73,7 +83,7 @@ The map key in `cards` must equal the nested card `id`. Each card ID must appear
 
 ## Initialization and Seed Data
 
-On application startup, the database layer will enable foreign keys and run the idempotent `CREATE TABLE IF NOT EXISTS` statements above. The schema version will be recorded with `PRAGMA user_version`; the initial version is `1`. A future schema change will increment that version and apply a small ordered migration in code.
+On application startup, the database layer enables foreign keys and runs the idempotent `CREATE TABLE IF NOT EXISTS` statements above. The schema version is recorded with `PRAGMA user_version`; the current version is `2`, which adds `chat_messages`. A future schema change will increment that version and apply a small ordered migration in code.
 
 The fixed MVP user is represented by a `users` row keyed to username `user`. On the first authenticated board read, the backend will create that user's one board if missing and seed the current five-column demo board, including its eight cards and positions. It will not overwrite an existing board.
 
@@ -82,6 +92,8 @@ The fixed MVP user is represented by a `users` row keyed to username `user`. On 
 Every board operation starts by resolving the authenticated session username to `users.id`, then its `boards.id`. All queries and mutations include that board scope. Card moves and reorders update positions transactionally: compact the source column positions, insert at the target position, and renumber affected cards without duplicate positions.
 
 The Part 6 API will validate that titles are nonempty, card IDs exist within the authenticated board, and each returned board satisfies the JSON contract above.
+
+Chat messages belong to a board and are deleted with it. The AI request uses the latest 10 messages in chronological order.
 
 ## Approval Needed
 

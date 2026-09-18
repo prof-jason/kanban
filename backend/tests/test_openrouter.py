@@ -1,11 +1,13 @@
 import httpx
 import pytest
 
+from app.ai_contract import ChatMessage
 from app.openrouter import (
     MODEL,
     OpenRouterConfigurationError,
     OpenRouterRequestError,
     answer_two_plus_two,
+    answer_board_question,
 )
 
 
@@ -46,3 +48,38 @@ def test_answer_two_plus_two_wraps_upstream_failures(monkeypatch) -> None:
 
     with pytest.raises(OpenRouterRequestError, match="valid response"):
         answer_two_plus_two()
+
+
+def test_answer_board_question_sends_board_history_and_structured_schema(monkeypatch) -> None:
+    request_data = {}
+
+    def mock_post(url, *, headers, json, timeout):
+        request_data.update({"url": url, "headers": headers, "json": json, "timeout": timeout})
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", url),
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"version":"1","response":"Done.","operations":[]}'
+                        }
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr("app.openrouter.httpx.post", mock_post)
+    board = {"columns": [], "cards": {}}
+    history = [ChatMessage(role="user", content="Earlier question")]
+
+    response = answer_board_question(board, history, "What should I do?")
+
+    assert response.response == "Done."
+    payload = request_data["json"]
+    assert payload["model"] == MODEL
+    assert payload["response_format"]["json_schema"]["strict"] is True
+    assert '"board": {"columns": [], "cards": {}}' in payload["messages"][1]["content"]
+    assert '"conversation_history": [{"role": "user", "content": "Earlier question"}]' in payload["messages"][1]["content"]
+    assert '"question": "What should I do?"' in payload["messages"][1]["content"]

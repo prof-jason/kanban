@@ -3,11 +3,13 @@ import pytest
 from app.database import (
     create_card,
     delete_card,
+    get_chat_history,
     get_connection,
     get_or_create_board,
     initialize_database,
     move_card,
     rename_column,
+    record_chat_messages,
     update_card,
 )
 
@@ -110,3 +112,18 @@ def test_board_mutations_cannot_cross_user_boundaries(tmp_path, monkeypatch) -> 
 
     with pytest.raises(LookupError, match="Column not found"):
         rename_column("user", other_column_id, "Unauthorized change")
+
+
+def test_chat_history_is_limited_to_the_latest_ten_messages(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    get_or_create_board("user")
+    record_chat_messages(
+        "user",
+        [{"role": "user", "content": f"Message {index}"} for index in range(12)],
+    )
+
+    history = get_chat_history("user")
+
+    assert len(history) == 10
+    assert history[0]["content"] == "Message 2"
+    assert history[-1]["content"] == "Message 11"

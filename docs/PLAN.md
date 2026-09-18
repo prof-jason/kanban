@@ -153,11 +153,11 @@ Success criteria:
 
 ## Part 9: Structured AI Board Operations
 
-- [ ] Define a versioned structured response contract containing assistant text and an optional complete board update or explicit operations.
-- [ ] Send the authenticated user's current board JSON, chat history, and new question to the backend AI client.
-- [ ] Validate the model response before returning it or persisting any proposed board changes.
-- [ ] Ensure invalid or unavailable model output cannot corrupt the board.
-- [ ] Define bounded conversation-history retention appropriate for the MVP.
+- [x] Define a versioned structured response contract containing assistant text and an optional complete board update or explicit operations.
+- [x] Send the authenticated user's current board JSON, chat history, and new question to the backend AI client.
+- [x] Validate the model response before returning it or persisting any proposed board changes.
+- [x] Ensure invalid or unavailable model output cannot corrupt the board.
+- [x] Define bounded conversation-history retention appropriate for the MVP.
 
 Tests:
 

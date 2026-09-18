@@ -194,3 +194,28 @@ def test_ai_chat_applies_validated_board_operations(client: TestClient, monkeypa
     result = response.json()
     assert result["board"]["columns"][0]["title"] == "Ideas"
     assert result["board"]["cards"][result["board"]["columns"][0]["cardIds"][-1]]["title"] == "Plan launch"
+
+
+def test_ai_chat_rejects_invalid_operations_without_changing_the_board(
+    client: TestClient, monkeypatch
+) -> None:
+    sign_in(client)
+    original_board = client.get("/api/board").json()
+    monkeypatch.setattr(
+        "app.main.answer_board_question",
+        lambda _board, _history, _question: AiChatResponse(
+            version="1",
+            response="I made a change.",
+            operations=[
+                RenameColumnOperation(
+                    type="rename_column", column_id="unknown-column", title="Ideas"
+                )
+            ],
+        ),
+    )
+
+    response = client.post("/api/ai/chat", json={"question": "Rename a column."})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "AI operation references an unknown column."
+    assert client.get("/api/board").json() == original_board

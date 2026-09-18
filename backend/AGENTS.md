@@ -11,5 +11,6 @@ This directory contains the FastAPI backend. It serves the statically exported f
 - `POST /api/auth/login`, `GET /api/auth/session`, and `POST /api/auth/logout` implement the signed cookie session for the fixed MVP credentials.
 - Authenticated board routes under `/api/board` return the complete ordered board after every mutation.
 - `app/openrouter.py` provides the server-only OpenRouter client using `OPENROUTER_API_KEY` and `nvidia/nemotron-3-ultra-550b-a55b:free`. `POST /api/ai/connectivity` is an authenticated, opt-in `2+2` check.
+- `POST /api/ai/chat` supplies the current board and the last 10 saved messages to OpenRouter. It accepts only the versioned structured output in `app/ai_contract.py` and returns assistant text plus the resulting board.
 
 Keep route handlers small. Add persistence and AI integrations only in their respective approved plan stages.
