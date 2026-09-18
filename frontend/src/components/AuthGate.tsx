@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
 type AuthState = "loading" | "signed-out" | "signed-in";
@@ -16,6 +16,9 @@ export const AuthGate = () => {
     const loadSession = async () => {
       try {
         const response = await fetch("/api/auth/session");
+        if (!response.ok) {
+          throw new Error("Unable to check your session.");
+        }
         const session = (await response.json()) as { authenticated: boolean };
         setAuthState(session.authenticated ? "signed-in" : "signed-out");
       } catch {
@@ -53,6 +56,11 @@ export const AuthGate = () => {
     }
   };
 
+  const handleUnauthorized = useCallback(() => {
+    setAuthState("signed-out");
+    setError("Your session has ended. Please sign in again.");
+  }, []);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setAuthState("signed-out");
@@ -65,7 +73,7 @@ export const AuthGate = () => {
   }
 
   if (authState === "signed-in") {
-    return <KanbanBoard onLogout={handleLogout} />;
+    return <KanbanBoard onLogout={handleLogout} onUnauthorized={handleUnauthorized} />;
   }
 
   return (

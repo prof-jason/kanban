@@ -51,4 +51,18 @@ describe("AuthGate", () => {
       expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     });
   });
+
+  it("returns to the login screen when the session expires", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sessionResponse(true))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthGate />);
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByText("Your session has ended. Please sign in again.")).toBeInTheDocument();
+  });
 });

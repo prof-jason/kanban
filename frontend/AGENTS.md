@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This directory contains the Next.js Kanban UI. Authentication and board state are handled through the FastAPI API; board data persists in SQLite. AI chat is not yet implemented.
+This directory contains the Next.js Kanban UI. Authentication and board state are handled through the FastAPI API; board data persists in SQLite. The AI chat sidebar is implemented.
 
 ## Stack and Commands
 
@@ -31,9 +31,10 @@ From this directory, use:
 - `src/components/KanbanCard.tsx` renders one sortable card and its delete action.
 - `src/components/KanbanCardPreview.tsx` renders the drag overlay preview.
 - `src/components/NewCardForm.tsx` contains the card-create form.
+- `src/lib/api.ts` provides `apiFetch`, which reports a 401 as `UnauthorizedError`; components call `onUnauthorized` to return to the login form.
 - `src/lib/kanban.ts` defines `Card`, `Column`, and `BoardData`, supplies the initial five-column sample board, and implements pure card-movement and ID helpers.
 
-The demo starts with five columns: Backlog, Discovery, In Progress, Review, and Done. Users can rename their titles, add and remove cards, and drag cards within or between columns. Card editing is not yet implemented despite being part of the MVP requirement.
+The demo starts with five columns: Backlog, Discovery, In Progress, Review, and Done. Users can rename their titles, add and remove cards, and drag cards within or between columns.
 
 ## Testing Conventions
 

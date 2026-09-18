@@ -14,15 +14,22 @@ import {
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { ChatSidebar } from "@/components/ChatSidebar";
+import { apiFetch, UnauthorizedError } from "@/lib/api";
 import { moveCard, type BoardData } from "@/lib/kanban";
 
 type KanbanBoardProps = {
   onLogout?: () => void;
+  onUnauthorized?: () => void;
   initialBoard?: BoardData;
   showChat?: boolean;
 };
 
-export const KanbanBoard = ({ onLogout, initialBoard, showChat = true }: KanbanBoardProps) => {
+export const KanbanBoard = ({
+  onLogout,
+  onUnauthorized,
+  initialBoard,
+  showChat = true,
+}: KanbanBoardProps) => {
   const [board, setBoard] = useState<BoardData | null>(initialBoard ?? null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -40,31 +47,41 @@ export const KanbanBoard = ({ onLogout, initialBoard, showChat = true }: KanbanB
 
     const loadBoard = async () => {
       try {
-        const response = await fetch("/api/board");
+        const response = await apiFetch("/api/board");
         if (!response.ok) {
           throw new Error("Unable to load the board.");
         }
         setBoard((await response.json()) as BoardData);
-      } catch {
+      } catch (error) {
+        if (error instanceof UnauthorizedError) {
+          onUnauthorized?.();
+          return;
+        }
         setError("Unable to load the board.");
       }
     };
 
     void loadBoard();
-  }, [initialBoard]);
+  }, [initialBoard, onUnauthorized]);
 
   const cardsById = useMemo(() => board?.cards ?? {}, [board]);
 
-  const saveBoard = async (path: string, options: RequestInit) => {
+  const saveBoard = async (path: string, options: RequestInit): Promise<boolean> => {
     setError("");
     try {
-      const response = await fetch(path, options);
+      const response = await apiFetch(path, options);
       if (!response.ok) {
         throw new Error("Unable to save the board.");
       }
       setBoard((await response.json()) as BoardData);
-    } catch {
-      setError("Unable to save the board. Please try again.");
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized?.();
+      } else {
+        setError("Unable to save the board. Please try again.");
+      }
+      return false;
     }
   };
 
@@ -101,25 +118,12 @@ export const KanbanBoard = ({ onLogout, initialBoard, showChat = true }: KanbanB
     });
   };
 
-  const handleRenameColumn = (columnId: string, title: string) => {
-    if (!board) {
-      return;
-    }
-    setBoard({
-      ...board,
-      columns: board.columns.map((column) =>
-        column.id === columnId ? { ...column, title } : column
-      ),
-    });
-  };
-
-  const handleSaveColumn = (columnId: string, title: string) => {
-    void saveBoard(`/api/board/columns/${columnId}`, {
+  const handleSaveColumn = (columnId: string, title: string) =>
+    saveBoard(`/api/board/columns/${columnId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     });
-  };
 
   const handleAddCard = (columnId: string, title: string, details: string) => {
     void saveBoard("/api/board/cards", {
@@ -219,7 +223,6 @@ export const KanbanBoard = ({ onLogout, initialBoard, showChat = true }: KanbanB
                   key={column.id}
                   column={column}
                   cards={column.cardIds.map((cardId) => board.cards[cardId])}
-                  onRename={handleRenameColumn}
                   onSaveColumn={handleSaveColumn}
                   onAddCard={handleAddCard}
                   onDeleteCard={handleDeleteCard}
@@ -235,7 +238,7 @@ export const KanbanBoard = ({ onLogout, initialBoard, showChat = true }: KanbanB
               ) : null}
             </DragOverlay>
           </DndContext>
-          {showChat && <ChatSidebar onBoardUpdate={setBoard} />}
+          {showChat && <ChatSidebar onBoardUpdate={setBoard} onUnauthorized={onUnauthorized} />}
         </div>
       </main>
     </div>

@@ -1,6 +1,7 @@
 import pytest
 
 from app.database import (
+    apply_ai_operations,
     create_card,
     delete_card,
     get_chat_history,
@@ -34,6 +35,7 @@ def test_initialization_creates_the_schema(tmp_path, monkeypatch) -> None:
 
 def test_first_board_read_seeds_the_current_kanban(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
 
     board = get_or_create_board("user")
 
@@ -50,6 +52,7 @@ def test_first_board_read_seeds_the_current_kanban(tmp_path, monkeypatch) -> Non
 
 def test_each_user_has_one_independent_seeded_board(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
 
     get_or_create_board("user")
     get_or_create_board("user")
@@ -62,6 +65,7 @@ def test_each_user_has_one_independent_seeded_board(tmp_path, monkeypatch) -> No
 
 def test_board_mutations_preserve_the_json_contract(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
     board = get_or_create_board("user")
     backlog_id = board["columns"][0]["id"]
     review_id = board["columns"][3]["id"]
@@ -92,6 +96,7 @@ def test_board_mutations_preserve_the_json_contract(tmp_path, monkeypatch) -> No
 
 def test_card_can_be_reordered_within_its_column(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
     board = get_or_create_board("user")
     backlog_id = board["columns"][0]["id"]
     first_card_id = board["columns"][0]["cardIds"][0]
@@ -106,6 +111,7 @@ def test_card_can_be_reordered_within_its_column(tmp_path, monkeypatch) -> None:
 
 def test_board_mutations_cannot_cross_user_boundaries(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
     other_board = get_or_create_board("another-user")
     other_column_id = other_board["columns"][0]["id"]
     get_or_create_board("user")
@@ -116,6 +122,7 @@ def test_board_mutations_cannot_cross_user_boundaries(tmp_path, monkeypatch) -> 
 
 def test_chat_history_is_limited_to_the_latest_ten_messages(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
     get_or_create_board("user")
     record_chat_messages(
         "user",
@@ -127,3 +134,39 @@ def test_chat_history_is_limited_to_the_latest_ten_messages(tmp_path, monkeypatc
     assert len(history) == 10
     assert history[0]["content"] == "Message 2"
     assert history[-1]["content"] == "Message 11"
+
+
+def test_ai_operations_are_applied_atomically(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
+    board = get_or_create_board("user")
+    backlog_id = board["columns"][0]["id"]
+
+    with pytest.raises(ValueError, match="Card title cannot be empty"):
+        apply_ai_operations(
+            "user",
+            [
+                {"type": "create_card", "column_id": backlog_id, "title": "Good", "details": ""},
+                {"type": "create_card", "column_id": backlog_id, "title": "   ", "details": ""},
+            ],
+        )
+
+    assert get_or_create_board("user") == board
+
+
+def test_ai_operations_reject_unknown_references_without_changes(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
+    initialize_database()
+    board = get_or_create_board("user")
+    card_id = board["columns"][0]["cardIds"][0]
+
+    with pytest.raises(ValueError, match="unknown card"):
+        apply_ai_operations(
+            "user",
+            [
+                {"type": "delete_card", "card_id": card_id},
+                {"type": "delete_card", "card_id": "missing-card"},
+            ],
+        )
+
+    assert get_or_create_board("user") == board

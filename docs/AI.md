@@ -27,7 +27,7 @@ The model must return this versioned JSON shape:
 - `move_card`: `card_id`, `column_id`, `position`
 - `delete_card`: `card_id`
 
-OpenRouter receives a strict JSON Schema derived from this contract. The backend parses the returned content before performing any mutation. It checks every referenced column, card, and target position against the current authenticated board before applying operations. Invalid or unavailable model output returns an error and no board change is recorded.
+OpenRouter receives a strict JSON Schema derived from this contract. The backend parses the returned content before performing any mutation. It checks every referenced column, card, and target position against the current authenticated board before applying operations. All operations in a response are applied in one database transaction: if any operation is invalid (unknown id, bad position, blank title), none are applied and no board change or chat message is recorded.
 
 Conversation history is stored in SQLite `chat_messages`, associated with the board. The request supplies the latest 10 messages in chronological order. After a successful chat request, the user question and assistant response are stored. Schema version 2 adds this table and its board/id index.
 

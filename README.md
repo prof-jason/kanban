@@ -31,7 +31,7 @@ The signed cookie session persists across browser refreshes. Use **Log out** to 
 - AI chat sidebar with persisted conversation history and automatic board updates from validated AI operations.
 - OpenRouter integration using `nvidia/nemotron-3-ultra-550b-a55b:free`.
 
-The root `.env` supplies `OPENROUTER_API_KEY` to the backend container only. `POST /api/ai/connectivity` is an authenticated, opt-in `2+2` connectivity check.
+The root `.env` supplies `OPENROUTER_API_KEY` to the backend container only. Optional `.env` settings: `SESSION_SECRET` (random per start if unset, so sessions end on restart), `SESSION_HTTPS_ONLY=1`, `MVP_USERNAME` and `MVP_PASSWORD` (default `user` / `password`). `POST /api/ai/connectivity` is an authenticated, opt-in `2+2` connectivity check.
 
 Stop the container:
 

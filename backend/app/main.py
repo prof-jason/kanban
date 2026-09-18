@@ -1,10 +1,11 @@
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import (
@@ -28,9 +29,13 @@ from app.openrouter import (
 )
 
 STATIC_DIRECTORY = Path(__file__).resolve().parent.parent / "static"
-SESSION_SECRET = os.getenv("SESSION_SECRET", "local-development-session-secret")
-MVP_USERNAME = "user"
-MVP_PASSWORD = "password"
+# Without SESSION_SECRET a random key is used, so sessions end when the server restarts.
+SESSION_SECRET = os.getenv("SESSION_SECRET") or secrets.token_urlsafe(32)
+SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY") == "1"
+MVP_USERNAME = os.getenv("MVP_USERNAME", "user")
+MVP_PASSWORD = os.getenv("MVP_PASSWORD", "password")
+TITLE_MAX_LENGTH = 200
+DETAILS_MAX_LENGTH = 4000
 
 
 class LoginRequest(BaseModel):
@@ -39,18 +44,18 @@ class LoginRequest(BaseModel):
 
 
 class ColumnUpdate(BaseModel):
-    title: str
+    title: str = Field(max_length=TITLE_MAX_LENGTH)
 
 
 class CardCreate(BaseModel):
     column_id: str
-    title: str
-    details: str = ""
+    title: str = Field(max_length=TITLE_MAX_LENGTH)
+    details: str = Field(default="", max_length=DETAILS_MAX_LENGTH)
 
 
 class CardUpdate(BaseModel):
-    title: str
-    details: str
+    title: str = Field(max_length=TITLE_MAX_LENGTH)
+    details: str = Field(max_length=DETAILS_MAX_LENGTH)
 
 
 class CardMove(BaseModel):
@@ -69,7 +74,12 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Project Management MVP", lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    same_site="lax",
+    https_only=SESSION_HTTPS_ONLY,
+)
 
 
 def get_authenticated_username(request: Request) -> str:
@@ -81,14 +91,22 @@ def get_authenticated_username(request: Request) -> str:
     return username
 
 
+def _matches(supplied: str, expected: str) -> bool:
+    return secrets.compare_digest(supplied.encode(), expected.encode())
+
+
 @app.post("/api/auth/login", status_code=status.HTTP_204_NO_CONTENT)
 def login(credentials: LoginRequest, request: Request) -> Response:
-    if credentials.username != MVP_USERNAME or credentials.password != MVP_PASSWORD:
+    if not (
+        _matches(credentials.username, MVP_USERNAME)
+        and _matches(credentials.password, MVP_PASSWORD)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password.",
         )
 
+    get_or_create_board(MVP_USERNAME)
     request.session["username"] = MVP_USERNAME
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

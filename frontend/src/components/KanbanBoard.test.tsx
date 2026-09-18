@@ -49,13 +49,62 @@ describe("KanbanBoard", () => {
     expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
   });
 
-  it("renames a column", async () => {
+  it("saves a renamed column when the input loses focus", async () => {
+    const afterRename = copyBoard();
+    afterRename.columns[0].title = "New Name";
+    const fetchMock = vi.fn().mockResolvedValue(boardResponse(afterRename));
+    vi.stubGlobal("fetch", fetchMock);
     render(<KanbanBoard initialBoard={initialData} showChat={false} />);
-    const column = getFirstColumn();
-    const input = within(column).getByLabelText("Column title");
+    const input = within(getFirstColumn()).getByLabelText("Column title");
+
     await userEvent.clear(input);
     await userEvent.type(input, "New Name");
-    expect(input).toHaveValue("New Name");
+    await userEvent.tab();
+
+    await waitFor(() => {
+      expect(within(getFirstColumn()).getByLabelText("Column title")).toHaveValue("New Name");
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/board/columns/col-backlog",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ title: "New Name" }) })
+    );
+  });
+
+  it("does not save an unchanged or empty column title", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
+    const input = within(getFirstColumn()).getByLabelText("Column title");
+
+    await userEvent.click(input);
+    await userEvent.tab();
+    await userEvent.clear(input);
+    await userEvent.tab();
+
+    expect(input).toHaveValue("Backlog");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("restores the column title when saving fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
+    render(<KanbanBoard initialBoard={initialData} showChat={false} />);
+    const input = within(getFirstColumn()).getByLabelText("Column title");
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "Broken");
+    await userEvent.tab();
+
+    expect(await screen.findByText("Unable to save the board. Please try again.")).toBeInTheDocument();
+    expect(input).toHaveValue("Backlog");
+  });
+
+  it("reports an expired session instead of a generic error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    const onUnauthorized = vi.fn();
+    render(<KanbanBoard onUnauthorized={onUnauthorized} showChat={false} />);
+
+    await waitFor(() => expect(onUnauthorized).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Unable to load the board.")).not.toBeInTheDocument();
   });
 
   it("adds and removes a card", async () => {

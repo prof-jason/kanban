@@ -228,3 +228,74 @@ def test_ai_history_requires_authentication_and_returns_saved_messages(client: T
     client.post("/api/ai/connectivity")
 
     assert client.get("/api/ai/history").json() == {"messages": []}
+
+
+def test_ai_chat_applies_no_operations_when_any_operation_is_invalid(
+    client: TestClient, monkeypatch
+) -> None:
+    sign_in(client)
+    original_board = client.get("/api/board").json()
+    backlog_id = original_board["columns"][0]["id"]
+    monkeypatch.setattr(
+        "app.main.answer_board_question",
+        lambda _board, _history, _question: AiChatResponse(
+            version="1",
+            response="I made changes.",
+            operations=[
+                CreateCardOperation(
+                    type="create_card", column_id=backlog_id, title="Good", details=""
+                ),
+                CreateCardOperation(
+                    type="create_card", column_id=backlog_id, title="   ", details=""
+                ),
+            ],
+        ),
+    )
+
+    response = client.post("/api/ai/chat", json={"question": "Add two cards."})
+
+    assert response.status_code == 502
+    assert client.get("/api/board").json() == original_board
+    assert client.get("/api/ai/history").json() == {"messages": []}
+
+
+def test_board_rest_fields_have_length_limits(client: TestClient) -> None:
+    sign_in(client)
+    board = client.get("/api/board").json()
+    column_id = board["columns"][0]["id"]
+    card_id = board["columns"][0]["cardIds"][0]
+
+    assert client.patch(f"/api/board/columns/{column_id}", json={"title": "x" * 201}).status_code == 422
+    assert (
+        client.post(
+            "/api/board/cards", json={"column_id": column_id, "title": "x" * 201, "details": ""}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            f"/api/board/cards/{card_id}", json={"title": "ok", "details": "x" * 4001}
+        ).status_code
+        == 422
+    )
+
+
+def test_login_credentials_can_be_configured(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr("app.main.MVP_PASSWORD", "another-secret")
+
+    rejected = client.post("/api/auth/login", json={"username": "user", "password": "password"})
+    accepted = client.post("/api/auth/login", json={"username": "user", "password": "another-secret"})
+
+    assert rejected.status_code == 401
+    assert accepted.status_code == 204
+
+
+def test_forged_session_cookie_is_rejected(client: TestClient) -> None:
+    from itsdangerous import TimestampSigner
+    import base64, json
+
+    payload = base64.b64encode(json.dumps({"username": "user"}).encode())
+    forged = TimestampSigner("local-development-session-secret").sign(payload).decode()
+    client.cookies.set("session", forged)
+
+    assert client.get("/api/board").status_code == 401

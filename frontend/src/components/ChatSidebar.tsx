@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { apiFetch, UnauthorizedError } from "@/lib/api";
 import type { BoardData } from "@/lib/kanban";
 
 type ChatMessage = {
@@ -10,9 +11,10 @@ type ChatMessage = {
 
 type ChatSidebarProps = {
   onBoardUpdate: (board: BoardData) => void;
+  onUnauthorized?: () => void;
 };
 
-export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
+export const ChatSidebar = ({ onBoardUpdate, onUnauthorized }: ChatSidebarProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
@@ -22,21 +24,25 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const response = await fetch("/api/ai/history");
+        const response = await apiFetch("/api/ai/history");
         if (!response.ok) {
           throw new Error("Unable to load chat history.");
         }
         const data = (await response.json()) as { messages: ChatMessage[] };
         setMessages(data.messages);
-      } catch {
-        setError("Unable to load chat history.");
+      } catch (error) {
+        if (error instanceof UnauthorizedError) {
+          onUnauthorized?.();
+        } else {
+          setError("Unable to load chat history.");
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     void loadHistory();
-  }, []);
+  }, [onUnauthorized]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -48,7 +54,7 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
     setError("");
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/ai/chat", {
+      const response = await apiFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: trimmedQuestion }),
@@ -64,8 +70,12 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
       ]);
       setQuestion("");
       onBoardUpdate(data.board);
-    } catch {
-      setError("Unable to send your message. Please try again.");
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        onUnauthorized?.();
+      } else {
+        setError("Unable to send your message. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

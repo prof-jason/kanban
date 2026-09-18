@@ -56,4 +56,23 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("Unable to send your message. Please try again.")).toBeInTheDocument();
     });
   });
+
+  it("reports an expired session when sending a message", async () => {
+    const onUnauthorized = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ messages: [] }))
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    );
+
+    render(<ChatSidebar onBoardUpdate={vi.fn()} onUnauthorized={onUnauthorized} />);
+    await screen.findByText("What would you like to change?");
+    await userEvent.type(screen.getByLabelText("Message the project assistant"), "Add a task");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(onUnauthorized).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Unable to send your message. Please try again.")).not.toBeInTheDocument();
+  });
 });
