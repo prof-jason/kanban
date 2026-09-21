@@ -2,8 +2,5 @@
 
 set -eu
 
-script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-project_root=$(CDPATH= cd -- "$script_directory/.." && pwd)
-
-cd "$project_root"
+cd -- "$(dirname -- "$0")/.."
 docker compose down

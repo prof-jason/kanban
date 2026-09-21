@@ -32,7 +32,7 @@ From this directory, use:
 - `src/components/KanbanCardPreview.tsx` renders the drag overlay preview.
 - `src/components/NewCardForm.tsx` contains the card-create form.
 - `src/lib/api.ts` provides `apiFetch`, which reports a 401 as `UnauthorizedError`; components call `onUnauthorized` to return to the login form.
-- `src/lib/kanban.ts` defines `Card`, `Column`, and `BoardData`, supplies the initial five-column sample board, and implements pure card-movement and ID helpers.
+- `src/lib/kanban.ts` defines `Card`, `Column`, and `BoardData`, supplies the five-column sample board used as a test fixture, and implements the pure card-movement helper.
 
 The demo starts with five columns: Backlog, Discovery, In Progress, Review, and Done. Users can rename their titles, add and remove cards, and drag cards within or between columns.
 

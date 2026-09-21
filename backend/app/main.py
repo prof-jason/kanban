@@ -1,13 +1,16 @@
 import os
 import secrets
-from contextlib import asynccontextmanager
+from collections.abc import Iterator
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.ai_contract import AiChatResponse, ChatMessage, StructuredOutputError, operation_to_dict
 from app.database import (
     apply_ai_operations,
     create_card,
@@ -16,11 +19,10 @@ from app.database import (
     get_or_create_board,
     initialize_database,
     move_card,
-    rename_column,
     record_chat_messages,
+    rename_column,
     update_card,
 )
-from app.ai_contract import AiChatResponse, ChatMessage, StructuredOutputError, operation_to_dict
 from app.openrouter import (
     OpenRouterConfigurationError,
     OpenRouterRequestError,
@@ -91,6 +93,22 @@ def get_authenticated_username(request: Request) -> str:
     return username
 
 
+AuthenticatedUsername = Annotated[str, Depends(get_authenticated_username)]
+
+
+@contextmanager
+def board_errors() -> Iterator[None]:
+    """Translate database lookup and validation failures into HTTP responses."""
+    try:
+        yield
+    except LookupError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+
+
 def _matches(supplied: str, expected: str) -> bool:
     return secrets.compare_digest(supplied.encode(), expected.encode())
 
@@ -124,84 +142,48 @@ def logout(request: Request) -> Response:
 
 
 @app.get("/api/board")
-def get_board(request: Request) -> dict[str, object]:
-    return get_or_create_board(get_authenticated_username(request))
+def get_board(username: AuthenticatedUsername) -> dict[str, object]:
+    return get_or_create_board(username)
 
 
 @app.patch("/api/board/columns/{column_id}")
 def update_column(
-    column_id: str, change: ColumnUpdate, request: Request
+    column_id: str, change: ColumnUpdate, username: AuthenticatedUsername
 ) -> dict[str, object]:
-    try:
-        return rename_column(get_authenticated_username(request), column_id, change.title)
-    except LookupError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
-        ) from error
+    with board_errors():
+        return rename_column(username, column_id, change.title)
 
 
 @app.post("/api/board/cards", status_code=status.HTTP_201_CREATED)
-def add_card(change: CardCreate, request: Request) -> dict[str, object]:
-    try:
-        return create_card(
-            get_authenticated_username(request),
-            change.column_id,
-            change.title,
-            change.details,
-        )
-    except LookupError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
-        ) from error
+def add_card(change: CardCreate, username: AuthenticatedUsername) -> dict[str, object]:
+    with board_errors():
+        return create_card(username, change.column_id, change.title, change.details)
 
 
 @app.patch("/api/board/cards/{card_id}")
 def edit_card(
-    card_id: str, change: CardUpdate, request: Request
+    card_id: str, change: CardUpdate, username: AuthenticatedUsername
 ) -> dict[str, object]:
-    try:
-        return update_card(
-            get_authenticated_username(request), card_id, change.title, change.details
-        )
-    except LookupError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
-        ) from error
+    with board_errors():
+        return update_card(username, card_id, change.title, change.details)
 
 
 @app.post("/api/board/cards/{card_id}/move")
 def move_board_card(
-    card_id: str, change: CardMove, request: Request
+    card_id: str, change: CardMove, username: AuthenticatedUsername
 ) -> dict[str, object]:
-    try:
-        return move_card(
-            get_authenticated_username(request), card_id, change.column_id, change.position
-        )
-    except LookupError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
-        ) from error
+    with board_errors():
+        return move_card(username, card_id, change.column_id, change.position)
 
 
 @app.delete("/api/board/cards/{card_id}")
-def remove_card(card_id: str, request: Request) -> dict[str, object]:
-    try:
-        return delete_card(get_authenticated_username(request), card_id)
-    except LookupError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+def remove_card(card_id: str, username: AuthenticatedUsername) -> dict[str, object]:
+    with board_errors():
+        return delete_card(username, card_id)
 
 
 @app.post("/api/ai/connectivity")
-def check_ai_connectivity(request: Request) -> dict[str, str]:
-    get_authenticated_username(request)
+def check_ai_connectivity(_: AuthenticatedUsername) -> dict[str, str]:
     try:
         return {"response": answer_two_plus_two()}
     except OpenRouterConfigurationError as error:
@@ -213,8 +195,7 @@ def check_ai_connectivity(request: Request) -> dict[str, str]:
 
 
 @app.post("/api/ai/chat")
-def chat_with_ai(change: AiChatRequest, request: Request) -> dict[str, object]:
-    username = get_authenticated_username(request)
+def chat_with_ai(change: AiChatRequest, username: AuthenticatedUsername) -> dict[str, object]:
     board = get_or_create_board(username)
     history = [ChatMessage.model_validate(message) for message in get_chat_history(username)]
     try:
@@ -240,8 +221,8 @@ def chat_with_ai(change: AiChatRequest, request: Request) -> dict[str, object]:
 
 
 @app.get("/api/ai/history")
-def get_ai_history(request: Request) -> dict[str, list[dict[str, str]]]:
-    return {"messages": get_chat_history(get_authenticated_username(request))}
+def get_ai_history(username: AuthenticatedUsername) -> dict[str, list[dict[str, str]]]:
+    return {"messages": get_chat_history(username)}
 
 
 @app.get("/api/example")

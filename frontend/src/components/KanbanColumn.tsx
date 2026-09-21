@@ -10,7 +10,7 @@ type KanbanColumnProps = {
   cards: Card[];
   onSaveColumn: (columnId: string, title: string) => Promise<boolean>;
   onAddCard: (columnId: string, title: string, details: string) => void;
-  onDeleteCard: (columnId: string, cardId: string) => void;
+  onDeleteCard: (cardId: string) => void;
   onEditCard: (cardId: string, title: string, details: string) => void;
 };
 
@@ -33,41 +33,37 @@ export const KanbanColumn = ({
       )}
       data-testid={`column-${column.id}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="w-full">
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-              {cards.length} cards
-            </span>
-          </div>
-          <input
-            key={column.title}
-            defaultValue={column.title}
-            maxLength={200}
-            onBlur={async (event) => {
-              const input = event.currentTarget;
-              const title = input.value.trim();
-              if (!title || title === column.title) {
-                input.value = column.title;
-                return;
-              }
-              if (!(await onSaveColumn(column.id, title))) {
-                input.value = column.title;
-              }
-            }}
-            className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
-            aria-label="Column title"
-          />
-        </div>
+      <div className="flex items-center gap-3">
+        <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
+          {cards.length} cards
+        </span>
       </div>
+      <input
+        key={column.title}
+        defaultValue={column.title}
+        maxLength={200}
+        onBlur={async (event) => {
+          const input = event.currentTarget;
+          const title = input.value.trim();
+          if (!title || title === column.title) {
+            input.value = column.title;
+            return;
+          }
+          if (!(await onSaveColumn(column.id, title))) {
+            input.value = column.title;
+          }
+        }}
+        className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
+        aria-label="Column title"
+      />
       <div className="mt-4 flex flex-1 flex-col gap-3">
         <SortableContext items={column.cardIds} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
             <KanbanCard
               key={card.id}
               card={card}
-              onDelete={(cardId) => onDeleteCard(column.id, cardId)}
+              onDelete={onDeleteCard}
               onEdit={onEditCard}
             />
           ))}

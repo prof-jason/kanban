@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -64,10 +64,20 @@ export const KanbanBoard = ({
     void loadBoard();
   }, [initialBoard, onUnauthorized]);
 
-  const cardsById = useMemo(() => board?.cards ?? {}, [board]);
-
-  const saveBoard = async (path: string, options: RequestInit): Promise<boolean> => {
+  const saveBoard = async (
+    path: string,
+    method: string,
+    body?: object
+  ): Promise<boolean> => {
     setError("");
+    const options: RequestInit = body
+      ? {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      : { method };
+
     try {
       const response = await apiFetch(path, options);
       if (!response.ok) {
@@ -108,46 +118,32 @@ export const KanbanBoard = ({
       return;
     }
 
-    void saveBoard(`/api/board/cards/${cardId}/move`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        column_id: targetColumn.id,
-        position: targetColumn.cardIds.indexOf(cardId),
-      }),
+    void saveBoard(`/api/board/cards/${cardId}/move`, "POST", {
+      column_id: targetColumn.id,
+      position: targetColumn.cardIds.indexOf(cardId),
     });
   };
 
   const handleSaveColumn = (columnId: string, title: string) =>
-    saveBoard(`/api/board/columns/${columnId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
+    saveBoard(`/api/board/columns/${columnId}`, "PATCH", { title });
 
   const handleAddCard = (columnId: string, title: string, details: string) => {
-    void saveBoard("/api/board/cards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ column_id: columnId, title, details }),
+    void saveBoard("/api/board/cards", "POST", {
+      column_id: columnId,
+      title,
+      details,
     });
   };
 
-  const handleDeleteCard = (_columnId: string, cardId: string) => {
-    void saveBoard(`/api/board/cards/${cardId}`, {
-      method: "DELETE",
-    });
+  const handleDeleteCard = (cardId: string) => {
+    void saveBoard(`/api/board/cards/${cardId}`, "DELETE");
   };
 
   const handleEditCard = (cardId: string, title: string, details: string) => {
-    void saveBoard(`/api/board/cards/${cardId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, details }),
-    });
+    void saveBoard(`/api/board/cards/${cardId}`, "PATCH", { title, details });
   };
 
-  const activeCard = activeCardId ? cardsById[activeCardId] : null;
+  const activeCard = activeCardId ? board?.cards[activeCardId] : null;
 
   if (!board) {
     return (

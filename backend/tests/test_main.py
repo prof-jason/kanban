@@ -1,9 +1,13 @@
+import base64
+import json
+
 import pytest
 from fastapi.testclient import TestClient
+from itsdangerous import TimestampSigner
 
-from app.main import app
 from app.ai_contract import AiChatResponse, CreateCardOperation, RenameColumnOperation
 from app.database import get_chat_history
+from app.main import app
 from app.openrouter import OpenRouterRequestError
 
 
@@ -291,9 +295,6 @@ def test_login_credentials_can_be_configured(client: TestClient, monkeypatch) ->
 
 
 def test_forged_session_cookie_is_rejected(client: TestClient) -> None:
-    from itsdangerous import TimestampSigner
-    import base64, json
-
     payload = base64.b64encode(json.dumps({"username": "user"}).encode())
     forged = TimestampSigner("local-development-session-secret").sign(payload).decode()
     client.cookies.set("session", forged)

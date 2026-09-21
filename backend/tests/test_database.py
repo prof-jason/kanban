@@ -9,17 +9,20 @@ from app.database import (
     get_or_create_board,
     initialize_database,
     move_card,
-    rename_column,
     record_chat_messages,
+    rename_column,
     update_card,
 )
 
 
-def test_initialization_creates_the_schema(tmp_path, monkeypatch) -> None:
+@pytest.fixture
+def database(tmp_path, monkeypatch) -> None:
+    """Point the module at an empty temporary database and create the schema."""
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-
     initialize_database()
 
+
+def test_initialization_creates_the_schema(database) -> None:
     with get_connection() as connection:
         tables = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -33,10 +36,7 @@ def test_initialization_creates_the_schema(tmp_path, monkeypatch) -> None:
     ]
 
 
-def test_first_board_read_seeds_the_current_kanban(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
-
+def test_first_board_read_seeds_the_current_kanban(database) -> None:
     board = get_or_create_board("user")
 
     assert [column["id"] for column in board["columns"]] == [
@@ -50,10 +50,7 @@ def test_first_board_read_seeds_the_current_kanban(tmp_path, monkeypatch) -> Non
     assert board["cards"]["board-user-card-1"]["title"] == "Align roadmap themes"
 
 
-def test_each_user_has_one_independent_seeded_board(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
-
+def test_each_user_has_one_independent_seeded_board(database) -> None:
     get_or_create_board("user")
     get_or_create_board("user")
     get_or_create_board("another-user")
@@ -63,9 +60,7 @@ def test_each_user_has_one_independent_seeded_board(tmp_path, monkeypatch) -> No
     assert board_count == 2
 
 
-def test_board_mutations_preserve_the_json_contract(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
+def test_board_mutations_preserve_the_json_contract(database) -> None:
     board = get_or_create_board("user")
     backlog_id = board["columns"][0]["id"]
     review_id = board["columns"][3]["id"]
@@ -94,9 +89,7 @@ def test_board_mutations_preserve_the_json_contract(tmp_path, monkeypatch) -> No
     assert new_card_id not in board["columns"][0]["cardIds"]
 
 
-def test_card_can_be_reordered_within_its_column(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
+def test_card_can_be_reordered_within_its_column(database) -> None:
     board = get_or_create_board("user")
     backlog_id = board["columns"][0]["id"]
     first_card_id = board["columns"][0]["cardIds"][0]
@@ -109,9 +102,7 @@ def test_card_can_be_reordered_within_its_column(tmp_path, monkeypatch) -> None:
     ]
 
 
-def test_board_mutations_cannot_cross_user_boundaries(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
+def test_board_mutations_cannot_cross_user_boundaries(database) -> None:
     other_board = get_or_create_board("another-user")
     other_column_id = other_board["columns"][0]["id"]
     get_or_create_board("user")
@@ -120,9 +111,7 @@ def test_board_mutations_cannot_cross_user_boundaries(tmp_path, monkeypatch) -> 
         rename_column("user", other_column_id, "Unauthorized change")
 
 
-def test_chat_history_is_limited_to_the_latest_ten_messages(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
+def test_chat_history_is_limited_to_the_latest_ten_messages(database) -> None:
     get_or_create_board("user")
     record_chat_messages(
         "user",
@@ -136,9 +125,7 @@ def test_chat_history_is_limited_to_the_latest_ten_messages(tmp_path, monkeypatc
     assert history[-1]["content"] == "Message 11"
 
 
-def test_ai_operations_are_applied_atomically(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
+def test_ai_operations_are_applied_atomically(database) -> None:
     board = get_or_create_board("user")
     backlog_id = board["columns"][0]["id"]
 
@@ -154,9 +141,7 @@ def test_ai_operations_are_applied_atomically(tmp_path, monkeypatch) -> None:
     assert get_or_create_board("user") == board
 
 
-def test_ai_operations_reject_unknown_references_without_changes(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "kanban.db"))
-    initialize_database()
+def test_ai_operations_reject_unknown_references_without_changes(database) -> None:
     board = get_or_create_board("user")
     card_id = board["columns"][0]["cardIds"][0]
 

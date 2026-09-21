@@ -6,8 +6,8 @@ from app.openrouter import (
     MODEL,
     OpenRouterConfigurationError,
     OpenRouterRequestError,
-    answer_two_plus_two,
     answer_board_question,
+    answer_two_plus_two,
 )
 
 
@@ -24,19 +24,35 @@ class FakeStream:
         return False
 
 
-def test_answer_two_plus_two_uses_the_configured_model(monkeypatch) -> None:
-    request_data = {}
+def stub_completion(monkeypatch, content: str) -> dict:
+    """Reply to every OpenRouter call with `content` and record the request sent."""
+    request_data: dict = {}
 
-    def mock_stream(method, url, *, headers, json, timeout):
+    def mock_stream(_method, url, *, headers, json, timeout):
         request_data.update({"url": url, "headers": headers, "json": json, "timeout": timeout})
         return FakeStream(
             200,
             request=httpx.Request("POST", url),
-            json={"choices": [{"message": {"content": "2 + 2 = 4"}}]},
+            json={"choices": [{"message": {"content": content}}]},
         )
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr("app.openrouter.httpx.stream", mock_stream)
+    return request_data
+
+
+def stub_failure(monkeypatch, error: Exception) -> None:
+    """Make every OpenRouter call raise `error`."""
+
+    def mock_stream(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr("app.openrouter.httpx.stream", mock_stream)
+
+
+def test_answer_two_plus_two_uses_the_configured_model(monkeypatch) -> None:
+    request_data = stub_completion(monkeypatch, "2 + 2 = 4")
 
     assert answer_two_plus_two() == "2 + 2 = 4"
     assert request_data["json"]["model"] == MODEL
@@ -52,38 +68,16 @@ def test_answer_two_plus_two_requires_an_api_key(monkeypatch) -> None:
 
 
 def test_answer_two_plus_two_wraps_upstream_failures(monkeypatch) -> None:
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-
-    def mock_stream(*_args, **_kwargs):
-        raise httpx.ConnectError("unavailable")
-
-    monkeypatch.setattr("app.openrouter.httpx.stream", mock_stream)
+    stub_failure(monkeypatch, httpx.ConnectError("unavailable"))
 
     with pytest.raises(OpenRouterRequestError, match="valid response"):
         answer_two_plus_two()
 
 
 def test_answer_board_question_sends_board_history_and_structured_schema(monkeypatch) -> None:
-    request_data = {}
-
-    def mock_stream(method, url, *, headers, json, timeout):
-        request_data.update({"url": url, "headers": headers, "json": json, "timeout": timeout})
-        return FakeStream(
-            200,
-            request=httpx.Request("POST", url),
-            json={
-                "choices": [
-                    {
-                        "message": {
-                            "content": '{"version":"1","response":"Done.","operations":[]}'
-                        }
-                    }
-                ]
-            },
-        )
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter.httpx.stream", mock_stream)
+    request_data = stub_completion(
+        monkeypatch, '{"version":"1","response":"Done.","operations":[]}'
+    )
     board = {"columns": [], "cards": {}}
     history = [ChatMessage(role="user", content="Earlier question")]
 
@@ -99,11 +93,7 @@ def test_answer_board_question_sends_board_history_and_structured_schema(monkeyp
 
 
 def test_timeouts_get_a_distinct_message(monkeypatch) -> None:
-    def mock_stream(*_args, **_kwargs):
-        raise httpx.ReadTimeout("slow")
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr("app.openrouter.httpx.stream", mock_stream)
+    stub_failure(monkeypatch, httpx.ReadTimeout("slow"))
 
     with pytest.raises(OpenRouterRequestError, match="took too long"):
         answer_two_plus_two()

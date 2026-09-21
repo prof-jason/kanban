@@ -269,40 +269,32 @@ def _move_card(
     card = _require_card(connection, board_id, card_id)
     _require_column(connection, board_id, target_column_id)
     source_column_id = card["column_id"]
-    target_card_ids = [
-        row["id"]
-        for row in connection.execute(
-            "SELECT id FROM cards WHERE column_id = ? ORDER BY position",
-            (target_column_id,),
-        )
-    ]
-    if source_column_id == target_column_id:
-        target_card_ids.remove(card_id)
+    same_column = source_column_id == target_column_id
+
+    source_card_ids = _card_ids(connection, source_column_id)
+    source_card_ids.remove(card_id)
+    target_card_ids = (
+        list(source_card_ids) if same_column else _card_ids(connection, target_column_id)
+    )
 
     if target_position < 0 or target_position > len(target_card_ids):
         raise ValueError("Target position is outside the column")
-
-    source_card_ids = [
-        row["id"]
-        for row in connection.execute(
-            "SELECT id FROM cards WHERE column_id = ? ORDER BY position",
-            (source_column_id,),
-        )
-        if row["id"] != card_id
-    ]
     target_card_ids.insert(target_position, card_id)
 
     _temporarily_clear_positions(connection, source_column_id)
-    if source_column_id == target_column_id:
+    if same_column:
         _set_positions(connection, source_column_id, target_card_ids)
-    else:
-        _temporarily_clear_positions(connection, target_column_id)
-        connection.execute(
-            "UPDATE cards SET column_id = ?, position = ? WHERE id = ?",
-            (target_column_id, -(len(target_card_ids) + 1), card_id),
-        )
-        _set_positions(connection, source_column_id, source_card_ids)
-        _set_positions(connection, target_column_id, target_card_ids)
+        return
+
+    _temporarily_clear_positions(connection, target_column_id)
+    # The moved card takes a position below every cleared one so it cannot collide
+    # with the target column before the final numbering.
+    connection.execute(
+        "UPDATE cards SET column_id = ?, position = ? WHERE id = ?",
+        (target_column_id, -(len(target_card_ids) + 1), card_id),
+    )
+    _set_positions(connection, source_column_id, source_card_ids)
+    _set_positions(connection, target_column_id, target_card_ids)
 
 
 def _get_board_id(connection: sqlite3.Connection, username: str) -> str:
@@ -318,15 +310,13 @@ def _get_board_id(connection: sqlite3.Connection, username: str) -> str:
         raise LookupError("Board not found")
     return row["board_id"]
 
-def _require_column(
-    connection: sqlite3.Connection, board_id: str, column_id: str
-) -> sqlite3.Row:
+
+def _require_column(connection: sqlite3.Connection, board_id: str, column_id: str) -> None:
     column = connection.execute(
         "SELECT id FROM columns WHERE id = ? AND board_id = ?", (column_id, board_id)
     ).fetchone()
     if column is None:
         raise LookupError("Column not found")
-    return column
 
 
 def _require_card(
@@ -345,6 +335,15 @@ def _require_card(
     return card
 
 
+def _card_ids(connection: sqlite3.Connection, column_id: str) -> list[str]:
+    return [
+        row["id"]
+        for row in connection.execute(
+            "SELECT id FROM cards WHERE column_id = ? ORDER BY position", (column_id,)
+        )
+    ]
+
+
 def _temporarily_clear_positions(connection: sqlite3.Connection, column_id: str) -> None:
     connection.execute(
         "UPDATE cards SET position = -position - 1 WHERE column_id = ?", (column_id,)
@@ -352,12 +351,7 @@ def _temporarily_clear_positions(connection: sqlite3.Connection, column_id: str)
 
 
 def _renumber_column(connection: sqlite3.Connection, column_id: str) -> None:
-    card_ids = [
-        row["id"]
-        for row in connection.execute(
-            "SELECT id FROM cards WHERE column_id = ? ORDER BY position", (column_id,)
-        )
-    ]
+    card_ids = _card_ids(connection, column_id)
     _temporarily_clear_positions(connection, column_id)
     _set_positions(connection, column_id, card_ids)
 
@@ -389,7 +383,10 @@ def get_chat_history(username: str, limit: int = 10) -> list[dict[str, str]]:
             """,
             (board_id, limit),
         ).fetchall()
-    return [{"role": message["role"], "content": message["content"]} for message in reversed(messages)]
+    return [
+        {"role": message["role"], "content": message["content"]}
+        for message in reversed(messages)
+    ]
 
 
 def record_chat_messages(username: str, messages: list[dict[str, str]]) -> None:
